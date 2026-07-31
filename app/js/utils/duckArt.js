@@ -12,14 +12,18 @@ window.DuckArt = {
     const s = size || 96;
     const deco = this._deco(level);
     const face = this._face(emotion);
+    // 渐变 ID 唯一化（页面可能同时存在多个鸭子 SVG，避免 defs 冲突）
+    const uid = 'd' + Math.random().toString(36).slice(2, 7);
+    const bodyGrad = 'duckBody' + uid;
+    const headGrad = 'duckHead' + uid;
     return `
     <svg viewBox="0 0 120 120" width="${s}" height="${s}" class="duck-svg duck-${emotion || 'idle'}">
       <defs>
-        <radialGradient id="duckBody" cx="45%" cy="35%" r="70%">
+        <radialGradient id="${bodyGrad}" cx="45%" cy="35%" r="70%">
           <stop offset="0%" stop-color="#FBF0C8"/>
           <stop offset="100%" stop-color="#F0D67A"/>
         </radialGradient>
-        <radialGradient id="duckHead" cx="40%" cy="30%" r="75%">
+        <radialGradient id="${headGrad}" cx="40%" cy="30%" r="75%">
           <stop offset="0%" stop-color="#FDF6D8"/>
           <stop offset="100%" stop-color="#F4DC8C"/>
         </radialGradient>
@@ -29,7 +33,7 @@ window.DuckArt = {
       ${deco.fire}
 
       <!-- 身体 -->
-      <ellipse cx="58" cy="78" rx="34" ry="28" fill="url(#duckBody)" stroke="#DDBB5E" stroke-width="2"/>
+      <ellipse cx="58" cy="78" rx="34" ry="28" fill="url(#${bodyGrad})" stroke="#DDBB5E" stroke-width="2"/>
       <!-- 翅膀 -->
       <path d="M30 74 q-12 -8 -6 -20 q6 -8 16 -4 q-4 10 2 16 z" fill="#E8C96E"/>
       <path d="M86 74 q12 -8 6 -20 q-6 -8 -16 -4 q4 10 -2 16 z" fill="#E8C96E"/>
@@ -37,7 +41,7 @@ window.DuckArt = {
       <path d="M86 66 q14 4 12 16 q2 -14 -12 -16 z" fill="#E2C25E"/>
 
       <!-- 头 -->
-      <circle cx="58" cy="38" r="24" fill="url(#duckHead)" stroke="#DDBB5E" stroke-width="2"/>
+      <circle cx="58" cy="38" r="24" fill="url(#${headGrad})" stroke="#DDBB5E" stroke-width="2"/>
 
       <!-- 腮红 -->
       <ellipse cx="44" cy="44" rx="5" ry="3.5" fill="#F8B0A0" opacity="0.8"/>
