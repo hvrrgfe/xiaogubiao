@@ -1248,6 +1248,9 @@
     html += '<div class="setting-row" data-action="ai-test">' +
       '<span class="s-label">' + icon('zap') + ' 测试连接</span>' +
       '<span class="s-val" id="ai-test-state">' + (Store.getApiKey() ? '已配置 Key' : '未填 Key') + '</span></div>';
+    html += '<div class="setting-row" data-action="lg-toggle">' +
+      '<span class="s-label">' + icon('refresh') + ' 液态折射效果（导航）</span>' +
+      '<span class="switch ' + ((window.LiquidGlass && LiquidGlass.isEnabled()) ? 'on' : '') + '" id="lg-switch"></span></div>';
     html += '</div>';
 
     // 工具
@@ -1271,6 +1274,13 @@
         if (a === 'ai-analyze') this.aiAnalyze();
         else if (a === 'ai-settings') this.aiSettings();
         else if (a === 'ai-test') this.aiTest();
+        else if (a === 'lg-toggle') {
+          if (window.LiquidGlass) {
+            if (LiquidGlass.isEnabled()) { LiquidGlass.disable(); UI.toast('已关闭液态折射'); }
+            else { LiquidGlass.enable(); UI.toast('已开启液态折射'); }
+            this.more();
+          }
+        }
         else if (a === 'templates') this.templates();
         else if (a === 'duck-detail') this.duckDetail();
         else if (a === 'export') this.exportData();
