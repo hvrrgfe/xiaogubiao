@@ -1250,7 +1250,7 @@
       '<span class="s-val" id="ai-test-state">' + (Store.getApiKey() ? '已配置 Key' : '未填 Key') + '</span></div>';
     html += '<div class="setting-row" data-action="lg-toggle">' +
       '<span class="s-label">' + icon('refresh') + ' 液态折射效果（导航）</span>' +
-      '<span class="switch ' + ((window.LiquidGlass && LiquidGlass.isEnabled()) ? 'on' : '') + '" id="lg-switch"></span></div>';
+      '<span class="switch ' + (window.LiquidGlass && LiquidGlass.isEnabled() ? 'on' : '') + '" id="lg-switch"></span></div>';
     html += '</div>';
 
     // 工具
@@ -1974,8 +1974,6 @@
       setTimeout(() => {
         $('#splash-screen').classList.add('fade-out');
         $('#app').classList.remove('hidden');
-        // 液态玻璃：app 可见后重建折射贴图（hidden 时尺寸为 0）
-        if (window.LiquidGlass) LiquidGlass.refresh();
       }, 600);
 
       // 导航
@@ -2000,8 +1998,9 @@
       // 今日页
       this.go('home');
 
-      // 液态玻璃：边缘折射膨胀（完整复刻）
-      if (window.LiquidGlass) LiquidGlass.init();
+      // 液态玻璃：CSS 层稳定可靠（噪点+高光+最透）；SVG 折射默认关闭
+      // （feDisplacementMap 在滚动/导航条上会错位闪烁，需要时在「更多→AI配置」手动开启）
+      if (window.LiquidGlass) LiquidGlass.disable();
 
       // 每日打卡提醒（简单的本地提醒文案）
       setInterval(() => {

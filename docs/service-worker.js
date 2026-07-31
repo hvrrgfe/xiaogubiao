@@ -1,5 +1,5 @@
 /* 「小目标」Service Worker —— 离线可用 */
-const CACHE_NAME = 'xiaogubiao-v1';
+const CACHE_NAME = 'xiaogubiao-v2';
 const ASSETS = [
   './',
   './index.html',
