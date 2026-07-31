@@ -266,6 +266,25 @@
         }
       });
       return due ? Math.round(done / due * 100) : 100;
+    },
+    /* 本周完成率（周一起至今） */
+    weekRate() {
+      const now = new Date();
+      const dow = now.getDay(); // 0=周日
+      const mondayOffset = dow === 0 ? 6 : dow - 1;
+      const monday = Store.addDays(Store.today(), -mondayOffset);
+      const goals = S().goals.filter(g => g.status === 'active');
+      let due = 0, done = 0;
+      for (let i = 0; i <= mondayOffset; i++) {
+        const ds = Store.addDays(monday, i);
+        goals.forEach(g => {
+          if (this.dueToday({ ...g, startDate: g.startDate < ds ? g.startDate : ds, endDate: g.endDate > ds ? g.endDate : ds })) {
+            due++;
+            if (Store.hasCheckin(g.id, ds)) done++;
+          }
+        });
+      }
+      return due ? Math.round(done / due * 100) : 100;
     }
   };
 
@@ -401,6 +420,16 @@
 
     html += '<div class="pet-speech" id="pet-speech">' + esc(greet + '，' + (data.goals.length ? '今天也要加油哦！' : '先立一个小目标吧！')) + '</div>';
 
+    // 每周复盘（周日）
+    if (new Date().getDay() === 0) {
+      const weekRate = Stats.weekRate();
+      html += '<div class="card" style="border-left:4px solid var(--primary);cursor:pointer" id="review-card">';
+      html += '<div class="card-title">' + icon('trending') + ' 周日复盘</div>';
+      html += '<p style="font-size:13px;color:var(--ink-2)">本周完成率 <b style="color:var(--primary-dark);font-size:17px">' + weekRate + '%</b> · 当前连续 ' + Stats.curStreak() + ' 天 🔥</p>';
+      html += '<p style="font-size:12px;color:var(--ink-3);margin-top:6px">点开看看这周的你有多棒，顺便规划下周 →</p>';
+      html += '</div>';
+    }
+
     // 今日待打卡
     html += '<div class="section-title">今日待打卡 <span style="font-size:12px;color:var(--ink-3)">(' + pending.length + ')</span></div>';
     if (pending.length) {
@@ -462,6 +491,34 @@
     };
     const emptyNew = $('#empty-new');
     if (emptyNew) emptyNew.onclick = () => GoalWizard.open();
+    const reviewCard = $('#review-card');
+    if (reviewCard) reviewCard.onclick = () => this.weekReview();
+  };
+
+  /* 周日复盘弹窗 */
+  Page.weekReview = function () {
+    const rate = Stats.weekRate();
+    const st = Stats.all();
+    let html = '<h3 class="modal-title">本周复盘</h3>';
+    html += '<div class="stats-grid">';
+    html += '<div class="stat-box"><div class="stat-num">' + rate + '%</div><div class="stat-label">本周完成率</div></div>';
+    html += '<div class="stat-box"><div class="stat-num">' + st.curStreak + '</div><div class="stat-label">当前连续 🔥</div></div>';
+    html += '<div class="stat-box"><div class="stat-num">' + st.totalCheckins + '</div><div class="stat-label">总打卡次数</div></div>';
+    html += '<div class="stat-box"><div class="stat-num">' + st.longestStreak + '</div><div class="stat-label">最长连续</div></div>';
+    html += '</div>';
+    const msg = rate >= 80 ? '这周超棒！下周继续保持！' : rate >= 50 ? '这周不错，下周可以更稳一点！' : '没关系，下周重新开始，小胖鸭陪你！';
+    html += '<div class="duck-line"><span class="dl-e">🐤</span><span>' + msg + '</span></div>';
+    html += '<div class="form-group" style="margin-top:14px"><label class="form-label">下周的小目标（可选）</label><textarea class="form-textarea" id="wk-plan" placeholder="写下下周想完成的一件事..."></textarea></div>';
+    html += '<button class="btn btn-block" id="wk-save">写下并关闭</button>';
+    UI.openModal(html);
+    const prev = S().settings.weekPlan;
+    if (prev) $('#wk-plan').value = prev;
+    $('#wk-save').onclick = () => {
+      S().settings.weekPlan = $('#wk-plan').value.trim();
+      Store.save();
+      UI.closeModal();
+      UI.toast('复盘完成，下周加油 🐤');
+    };
   };
 
   /* 目标卡片 */
@@ -733,7 +790,48 @@
       el.onclick = e => {
         if (e.target.classList.contains('q-del')) return;
         const t = data.tasks.find(x => x.id === el.dataset.task);
-        if (t) { t.status = t.status === 'done' ? 'todo' : 'done'; Store.save(); this.quadrant(); }
+        if (!t) return;
+        // 操作菜单：完成/恢复 + 移动到其他象限 + 删除
+        const labels = { q1: '紧急且重要', q2: '重要不紧急', q3: '紧急不重要', q4: '不重要不紧急' };
+        let h = '<h3 class="modal-title">' + esc(t.title) + '</h3>';
+        h += '<div class="form-label">移动到象限</div><div class="type-select">';
+        Object.keys(labels).forEach(k => {
+          h += '<div class="type-option ' + (t.quadrant === k ? 'selected' : '') + '" data-q="' + k + '">' +
+            '<div class="type-name" style="font-size:12px;margin-top:0">' + labels[k] + '</div></div>';
+        });
+        h += '</div>';
+        h += '<div class="step-btns">';
+        h += '<button class="btn btn-ghost" style="flex:1" id="qt-del">' + icon('trash') + ' 删除</button>';
+        if (t.status === 'done') h += '<button class="btn btn-olive" style="flex:1" id="qt-undo">恢复</button>';
+        else h += '<button class="btn" style="flex:1" id="qt-done">' + icon('check') + ' 完成</button>';
+        h += '</div>';
+        UI.openModal(h);
+        $$('[data-q]').forEach(x => {
+          x.onclick = () => {
+            t.quadrant = x.dataset.q;
+            Store.save();
+            UI.closeModal();
+            this.quadrant();
+          };
+        });
+        $('#qt-del').onclick = () => {
+          data.tasks = data.tasks.filter(x => x.id !== t.id);
+          Store.save();
+          UI.closeModal();
+          this.quadrant();
+        };
+        $('#qt-done') && ($('#qt-done').onclick = () => {
+          t.status = 'done';
+          Store.save();
+          UI.closeModal();
+          this.quadrant();
+        });
+        $('#qt-undo') && ($('#qt-undo').onclick = () => {
+          t.status = 'todo';
+          Store.save();
+          UI.closeModal();
+          this.quadrant();
+        });
       };
     });
     $$('.q-del').forEach(el => {
@@ -795,7 +893,7 @@
     html += '</div>';
     html += '<div class="section-title" style="margin-top:10px">白噪音</div>';
     html += '<div class="noise-row" id="noise-row">';
-    ['静音', '雨声', '篝火', '海浪'].forEach((n, i) => {
+    ['静音', '雨声', '篝火', '海浪', '纯音乐'].forEach((n, i) => {
       html += '<button class="noise-chip ' + (i === 0 ? 'active' : '') + '" data-noise="' + i + '">' + n + '</button>';
     });
     html += '</div>';
@@ -894,6 +992,7 @@
   /* Web Audio 白噪音生成（零依赖） */
   Page._noiseCtx = null;
   Page._noiseNodes = null;
+  Page._noiseInterval = null;
   Page.startNoise = function (type) {
     this.stopNoise();
     if (type === 0) return;
@@ -901,6 +1000,40 @@
       const AC = window.AudioContext || window.webkitAudioContext;
       const ctx = new AC();
       this._noiseCtx = ctx;
+
+      // 纯音乐：舒缓琶音（C → Am → F → G 循环），不依赖白噪音 buffer
+      if (type === 4) {
+        const chords = [
+          [261.63, 329.63, 392.00],  // C
+          [220.00, 261.63, 329.63],  // Am
+          [174.61, 220.00, 261.63],  // F
+          [196.00, 246.94, 293.66]   // G
+        ];
+        const gain = ctx.createGain();
+        gain.gain.value = 0.10;
+        gain.connect(ctx.destination);
+        let chordIdx = 0, noteIdx = 0;
+        const playNote = () => {
+          const chord = chords[chordIdx];
+          const osc = ctx.createOscillator();
+          osc.type = 'sine';
+          osc.frequency.value = chord[noteIdx];
+          const og = ctx.createGain();
+          og.gain.setValueAtTime(0, ctx.currentTime);
+          og.gain.linearRampToValueAtTime(0.28, ctx.currentTime + 0.12);
+          og.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.9);
+          osc.connect(og);
+          og.connect(gain);
+          osc.start();
+          osc.stop(ctx.currentTime + 2.1);
+          noteIdx++;
+          if (noteIdx >= chord.length) { noteIdx = 0; chordIdx = (chordIdx + 1) % chords.length; }
+        };
+        playNote();
+        this._noiseInterval = setInterval(playNote, 620);
+        return;
+      }
+
       const nodes = [];
       const master = ctx.createGain();
       master.gain.value = 0.5;
@@ -951,6 +1084,7 @@
     }
   };
   Page.stopNoise = function () {
+    if (this._noiseInterval) { clearInterval(this._noiseInterval); this._noiseInterval = null; }
     if (this._noiseCtx) { try { this._noiseCtx.close(); } catch (e) {} this._noiseCtx = null; }
     this._noiseNodes = null;
   };
@@ -988,6 +1122,11 @@
     }
     html += '</div></div>';
 
+    // 本月打卡趋势（SVG 折线）
+    html += '<div class="card"><div class="card-title">' + icon('trending') + ' 本月打卡趋势</div>';
+    html += this.monthLine();
+    html += '</div>';
+
     // 分类分布
     const cats = {};
     data.goals.forEach(g => { cats[g.category] = (cats[g.category] || 0) + 1; });
@@ -1012,6 +1151,51 @@
     html += '</div></div>';
 
     $('#main-content').innerHTML = html;
+  };
+
+  /* 本月打卡趋势折线图（SVG） */
+  Page.monthLine = function () {
+    const now = new Date();
+    const days = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+    const ym = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+    const today = Store.today();
+    const todayIdx = Store.daysBetween(ym + '-01', today);
+    const W = 320, H = 90, PAD = 10;
+    let maxCnt = 1;
+    const counts = [];
+    for (let d = 1; d <= days; d++) {
+      const ds = ym + '-' + String(d).padStart(2, '0');
+      const cnt = S().checkins.filter(c => c.date === ds).length;
+      counts.push(cnt);
+      if (cnt > maxCnt) maxCnt = cnt;
+    }
+    const stepX = (W - PAD * 2) / Math.max(1, days - 1);
+    const pts = counts.map((cnt, i) => {
+      const x = PAD + i * stepX;
+      const y = H - PAD - (cnt / maxCnt) * (H - PAD * 2);
+      return [x, y];
+    });
+    const line = pts.slice(0, todayIdx + 1).map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ');
+    const fillArea = line + ' ' + (PAD + todayIdx * stepX).toFixed(1) + ',' + (H - PAD) + ' ' + PAD + ',' + (H - PAD);
+    let svg = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;height:auto">';
+    // 网格线
+    for (let g = 1; g <= 4; g++) {
+      const gy = PAD + (H - PAD * 2) * g / 5;
+      svg += '<line x1="' + PAD + '" y1="' + gy + '" x2="' + (W - PAD) + '" y2="' + gy + '" stroke="#F2EADB" stroke-width="1"/>';
+    }
+    // 面积
+    svg += '<polygon points="' + fillArea + '" fill="var(--olive)" opacity="0.12"/>';
+    // 折线
+    svg += '<polyline points="' + line + '" fill="none" stroke="var(--olive)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>';
+    // 数据点（到今天）
+    pts.slice(0, todayIdx + 1).forEach((p, i) => {
+      if (counts[i] > 0) {
+        svg += '<circle cx="' + p[0].toFixed(1) + '" cy="' + p[1].toFixed(1) + '" r="3" fill="#fff" stroke="var(--olive)" stroke-width="2"/>';
+      }
+    });
+    svg += '</svg>';
+    svg += '<div style="display:flex;justify-content:space-between;font-size:11px;color:var(--ink-3);margin-top:4px"><span>1日</span><span>' + now.getMonth() + 1 + '月' + days + '日</span></div>';
+    return svg;
   };
 
   Page.badges = function (st) {
@@ -1182,7 +1366,8 @@
   /* 模板库 */
   Page.templates = function () {
     let html = '<h3 class="modal-title">目标模板库</h3>';
-    html += '<div class="tpl-grid">';
+    html += '<input class="form-input" id="tpl-search" placeholder="🔍 搜索模板..." style="margin-bottom:12px">';
+    html += '<div class="tpl-grid" id="tpl-grid">';
     GOAL_TEMPLATES.forEach((t, i) => {
       html += '<div class="tpl-card" data-tpl="' + i + '">' +
         '<div class="tpl-emoji">' + t.emoji + '</div>' +
@@ -1193,6 +1378,18 @@
     html += '<button class="btn btn-ghost btn-block" id="tpl-close" style="margin-top:16px">关闭</button>';
     UI.openModal(html);
     $('#tpl-close').onclick = () => UI.closeModal();
+    /* 搜索过滤：按字符拆分匹配（更宽松友好） */
+    $('#tpl-search').oninput = () => {
+      const q = $('#tpl-search').value.trim().toLowerCase();
+      const chars = q.split('');
+      $$('#tpl-grid .tpl-card').forEach(card => {
+        const t = GOAL_TEMPLATES[parseInt(card.dataset.tpl, 10)];
+        if (!q) { card.style.display = ''; return; }
+        const text = (t.name + t.desc + t.cat).toLowerCase();
+        const match = q.length === 1 ? text.indexOf(q) !== -1 : chars.every(c => text.indexOf(c) !== -1);
+        card.style.display = match ? '' : 'none';
+      });
+    };
     $$('.tpl-card').forEach(el => {
       el.onclick = () => {
         const t = GOAL_TEMPLATES[parseInt(el.dataset.tpl, 10)];
@@ -1570,6 +1767,11 @@
       // 宠物数值回落
       Pet.tick();
 
+      // 自动归档检查（超期30天未打卡）
+      setTimeout(() => this.checkAutoArchive(), 1200);
+      // 里程碑到期提醒
+      setTimeout(() => this.checkMilestoneDue(), 2400);
+
       // 今日页
       this.go('home');
 
@@ -1601,6 +1803,63 @@
 
     stopNoiseIfRunning() {
       if (Page._noiseCtx) Page.stopNoise();
+    },
+
+    /* 自动归档：超截止日期30天未打卡的目标 → 提示延期/放弃 */
+    checkAutoArchive() {
+      const data = S();
+      const today = Store.today();
+      const expired = data.goals.filter(g =>
+        g.status === 'active' &&
+        today > Store.addDays(g.endDate, 30) &&
+        !data.checkins.some(c => c.goalId === g.id && c.date > g.endDate)
+      );
+      if (!expired.length) return;
+      let html = '<h3 class="modal-title">目标可能已搁置</h3>';
+      html += '<p style="font-size:13px;color:var(--ink-2);text-align:center;margin-bottom:14px">以下目标已超过截止日期 30 天没有打卡，要延期还是放弃？</p>';
+      expired.forEach(g => {
+        html += '<div class="card" style="margin-bottom:10px">';
+        html += '<div style="font-size:14px;font-weight:600;margin-bottom:8px">' + esc(g.name) + '</div>';
+        html += '<div class="goal-actions">';
+        html += '<button class="btn btn-sm btn-olive" data-ext="' + g.id + '">延期30天</button>';
+        html += '<button class="btn btn-sm btn-ghost" data-abd="' + g.id + '">放弃</button>';
+        html += '</div></div>';
+      });
+      html += '<button class="btn btn-block" id="aa-close" style="margin-top:4px">暂不处理</button>';
+      UI.openModal(html);
+      $$('[data-ext]').forEach(b => {
+        b.onclick = () => {
+          const gid = b.dataset.ext;
+          Goals.update(gid, { endDate: Store.addDays(Store.getGoal(gid).endDate, 30) });
+          UI.toast('已延期 30 天 🐤');
+          UI.closeModal();
+        };
+      });
+      $$('[data-abd]').forEach(b => {
+        b.onclick = () => {
+          Goals.setStatus(b.dataset.abd, 'abandoned');
+          UI.toast('已标记为放弃（没关系，随时可重新开始）');
+          UI.closeModal();
+        };
+      });
+      $('#aa-close').onclick = () => UI.closeModal();
+    },
+
+    /* 里程碑到期提醒 */
+    checkMilestoneDue() {
+      const data = S();
+      const today = Store.today();
+      const due = [];
+      data.goals.forEach(g => {
+        if (g.status !== 'active') return;
+        (g.milestones || []).forEach(m => {
+          if (m.status === 'pending' && m.targetDate && m.targetDate < today) {
+            const p = Stats.progress(g);
+            due.push('📍 「' + g.name + '」里程碑「' + m.title + '」时间到了，当前进度 ' + Math.round(p.pct) + '%');
+          }
+        });
+      });
+      if (due.length) UI.duckPop(due[0]);
     },
 
     addFab() {
@@ -1667,8 +1926,10 @@
     if (records.length) {
       const recent = records.slice(-20).reverse();
       recent.forEach(r => {
+        const editable = r.date === today;
         html += '<div class="record-item"><span class="record-date">' + r.date + '</span>' +
           '<span class="record-note">' + (r.source === 'makeup' ? '补卡' : (r.value ? '+' + r.value + (g.unit || '') : '✓')) + (r.note ? ' · ' + esc(r.note) : '') + '</span>' +
+          (editable ? '<button class="q-edit" data-rid="' + r.id + '" style="border:none;background:none;color:var(--primary);cursor:pointer;font-size:12px;flex-shrink:0">编辑</button>' : '') +
           '<button class="q-del" data-del="' + r.id + '" style="border:none;background:none;color:var(--ink-3);cursor:pointer">✕</button></div>';
       });
     } else {
@@ -1683,6 +1944,9 @@
       html += '<button class="btn btn-danger" style="flex:1" id="gd-del">' + icon('trash') + ' 删除</button>';
     } else if (g.status === 'archived') {
       html += '<button class="btn btn-olive" style="flex:1" data-status="active">恢复进行</button>';
+      html += '<button class="btn btn-danger" style="flex:1" id="gd-del">删除</button>';
+    } else if (g.status === 'abandoned') {
+      html += '<button class="btn btn-olive" style="flex:1" data-status="active">重新开始</button>';
       html += '<button class="btn btn-danger" style="flex:1" id="gd-del">删除</button>';
     } else {
       html += '<button class="btn btn-ghost" style="flex:1" data-status="active">重新开始</button>';
@@ -1722,6 +1986,36 @@
     });
     $$('.q-del').forEach(el => {
       el.onclick = () => { Store.removeCheckin(el.dataset.del); this.goalDetail(gid); };
+    });
+    /* 编辑当天打卡记录（24小时内） */
+    $$('.q-edit').forEach(el => {
+      el.onclick = () => {
+        const r = S().checkins.find(c => c.id === el.dataset.rid);
+        if (!r) return;
+        let h = '<h3 class="modal-title">编辑打卡记录</h3>';
+        if (g.type === 'quantitative') {
+          h += '<div class="form-group"><label class="form-label">本次数值 (' + esc(g.unit || '') + ')</label><input class="form-input" id="re-val" type="number" value="' + (r.value || '') + '"></div>';
+        }
+        h += '<div class="form-group"><label class="form-label">备注</label><input class="form-input" id="re-note" value="' + esc(r.note || '') + '" placeholder="可选"></div>';
+        h += '<div class="step-btns"><button class="btn btn-ghost" style="flex:1" id="re-cancel">取消</button><button class="btn" style="flex:1" id="re-save">' + icon('check') + ' 保存</button></div>';
+        UI.openModal(h);
+        $('#re-cancel').onclick = () => UI.closeModal();
+        $('#re-save').onclick = () => {
+          if (g.type === 'quantitative') {
+            const oldV = r.value || 0;
+            const newV = parseFloat($('#re-val').value) || 0;
+            const diff = newV - oldV;
+            g.currentValue = Math.max(0, (g.currentValue || 0) + diff);
+            r.value = newV;
+            Goals.update(g.id, { currentValue: g.currentValue });
+          }
+          r.note = $('#re-note').value.trim();
+          Store.save();
+          UI.closeModal();
+          UI.toast('已保存修改');
+          this.goalDetail(gid);
+        };
+      };
     });
     $$('[data-status]').forEach(b => {
       b.onclick = () => {
