@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#C49A6C">
+  <meta name="description" content="小目标 - 一个人也能认真完成目标的安静角落。完全免费、无付费墙、无焦虑制造机。">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="小目标">
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='34' r='26' fill='%23F0D67A'/%3E%3Cellipse cx='32' cy='38' rx='20' ry='14' fill='%23F5E6B8'/%3E%3Ccircle cx='24' cy='30' r='3.5' fill='%23333'/%3E%3Ccircle cx='40' cy='30' r='3.5' fill='%23333'/%3E%3Cpath d='M27 40 q5 5 10 0' stroke='%23E8A33C' stroke-width='3' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+  <link rel="apple-touch-icon" href="assets/app-icon-180.png">
+  <title>小目标</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- 启动画面 -->
+  <div id="splash-screen" class="splash-screen">
+    <div class="splash-content">
+      <svg class="splash-logo" viewBox="0 0 64 64"><circle cx="32" cy="34" r="26" fill="#F0D67A"/><ellipse cx="32" cy="38" rx="20" ry="14" fill="#F5E6B8"/><circle cx="24" cy="30" r="3.5" fill="#333"/><circle cx="40" cy="30" r="3.5" fill="#333"/><path d="M27 40 q5 5 10 0" stroke="#E8A33C" stroke-width="3" fill="none" stroke-linecap="round"/></svg>
+      <div class="splash-title">小目标</div>
+      <div class="splash-sub">一个人也能认真完成目标 🐤</div>
+      <div class="splash-loader"></div>
+    </div>
+  </div>
+
+  <!-- 主应用 -->
+  <div id="app" class="app-wrap hidden">
+    <header class="app-header">
+      <div class="app-title" id="page-title">小目标</div>
+      <nav class="app-nav" id="app-nav">
+        <a href="#" data-page="home" class="active">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+          <span>今天</span>
+        </a>
+        <a href="#" data-page="calendar">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          <span>日历</span>
+        </a>
+        <a href="#" data-page="quadrant">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+          <span>四象限</span>
+        </a>
+        <a href="#" data-page="focus">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+          <span>专注</span>
+        </a>
+        <a href="#" data-page="stats">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+          <span>统计</span>
+        </a>
+        <a href="#" data-page="more">
+          <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          <span>更多</span>
+        </a>
+      </nav>
+    </header>
+
+    <main id="main-content"></main>
+
+    <!-- 底部快捷打卡栏 -->
+    <div id="quickbar" class="quickbar hidden">
+      <div class="quickbar-inner" id="quickbar-inner"></div>
+    </div>
+
+    <div id="modal-overlay" class="modal-overlay hidden">
+      <div class="modal-box" id="modal-content"></div>
+    </div>
+    <div id="duck-pop" class="duck-pop hidden"></div>
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script>
+    if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('service-worker.js').catch(function (e) {
+          console.warn('SW failed:', e.message);
+        });
+      });
+    }
+  </script>
+  <script src="js/data/presets.js"></script>
+  <script src="js/data/templates.js"></script>
+  <script src="js/data/duck.js"></script>
+  <script src="js/utils/icons.js"></script>
+  <script src="js/utils/store.js"></script>
+  <script src="js/utils/duckArt.js"></script>
+  <script src="js/utils/llm.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

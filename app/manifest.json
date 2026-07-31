@@ -1,0 +1,16 @@
+{
+  "name": "小目标",
+  "short_name": "小目标",
+  "description": "一个人也能认真完成目标的安静角落。完全免费、无付费墙、数据本地存储。",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#FBF3D9",
+  "theme_color": "#C49A6C",
+  "lang": "zh-CN",
+  "icons": [
+    { "src": "assets/app-icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "assets/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "assets/app-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
