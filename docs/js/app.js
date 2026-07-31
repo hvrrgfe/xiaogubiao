@@ -1300,7 +1300,8 @@
     if (w.report) {
       /* ---- 报告页 ---- */
       const r = w.report;
-      let html = '<h3 class="modal-title">🐤 AI 智能分析报告</h3>';
+      let html = '<h3 class="modal-title">🐤 AI 智能分析报告' +
+        (w.usedLocal ? '<div style="font-size:10px;color:var(--ink-3);font-weight:400;margin-top:4px">· 本地智能分析引擎（配置 API Key 后更精准）</div>' : '') + '</h3>';
       html += '<div style="text-align:center;margin-bottom:14px">';
       html += '<span class="stat-num" style="font-size:38px">' + r.score + '</span>';
       html += '<div class="stat-label">目标健康度</div>';
@@ -1381,40 +1382,104 @@
     };
   };
 
-  /* 调用 LLM 生成报告 */
+  /* 调用 LLM 生成报告（无 Key / 失败时降级本地智能分析引擎） */
   Page.aiGenerate = async function () {
     const s = S().settings;
     const w = this._aiq;
+    const key = Store.getApiKey();
+    const useLLM = !!key || s.apiProvider === 'ollama';
+
+    if (!useLLM) {
+      w.report = this.localReport(w.answers, this._appStatsData());
+      w.usedLocal = true;
+      this.aiqRender();
+      return;
+    }
     try {
-      const key = Store.getApiKey();
-      if (!key && s.apiProvider !== 'ollama') {
-        UI.closeModal();
-        UI.toast('请先在「更多 → AI 配置」填写 API Key');
-        this._aiq = { step: 0, answers: {}, report: null };
-        return;
-      }
-      const goals = S().goals.filter(g => g.status === 'active');
-      const st = Stats.all();
-      const appStats = {
-        activeGoals: st.active,
-        completed: st.completed,
-        totalCheckins: st.totalCheckins,
-        curStreak: st.curStreak,
-        longestStreak: st.longestStreak,
-        goalNames: goals.map(g => g.name + '(' + Math.round(Stats.progress(g).pct) + '%)').join('、') || '暂无'
-      };
       const report = await LLM.smartAnalysis({
         answers: w.answers,
-        appStats: appStats,
+        appStats: this._appStatsData(),
         settings: { endpoint: s.apiEndpoint, model: s.apiModel, apiKey: key, useProxy: s.useProxy }
       });
       w.report = report;
+      w.usedLocal = false;
       this.aiqRender();
     } catch (e) {
-      UI.closeModal();
-      UI.toast('分析失败: ' + e.message);
-      this._aiq = { step: 0, answers: {}, report: null };
+      /* 降级：本地智能分析引擎 */
+      w.report = this.localReport(w.answers, this._appStatsData());
+      w.usedLocal = true;
+      this.aiqRender();
+      UI.toast('AI 服务暂不可用，已用本地智能分析 🐤');
     }
+  };
+
+  /* App 数据汇总（供分析使用） */
+  Page._appStatsData = function () {
+    const goals = S().goals.filter(g => g.status === 'active');
+    const st = Stats.all();
+    return {
+      activeGoals: st.active,
+      completed: st.completed,
+      totalCheckins: st.totalCheckins,
+      curStreak: st.curStreak,
+      longestStreak: st.longestStreak,
+      goalNames: goals.map(g => g.name + '(' + Math.round(Stats.progress(g).pct) + '%)').join('、') || '暂无'
+    };
+  };
+
+  /* ---- 本地智能分析引擎（无 Key 降级，融合科学知识） ---- */
+  Page.localReport = function (answers, appStats) {
+    const a = answers;
+    const goalTxt = a.goal || '';
+    const planTxt = a.plan || '';
+    const blockerTxt = a.blocker || '';
+    const scoreTxt = a.score || '';
+
+    const hasNumber = /\d+/.test(goalTxt);
+    const hasRoutine = /每天|每周|睡前|早上|晚上|固定|时间|点/.test(goalTxt + planTxt);
+    const hasMilestone = /里程碑|步骤|阶段|拆|计划|小目标/.test(planTxt);
+    const isTime = /时间|忙|加班|累|晚|没空/.test(blockerTxt);
+    const isMotivation = /动力|不想|坚持|放弃|懒|无聊/.test(blockerTxt);
+    const isMethod = /方法|不会|不懂|不知道|怎么|效率/.test(blockerTxt);
+    const isEnv = /环境|手机|打扰|干扰|吵|乱/.test(blockerTxt);
+    const selfScore = parseInt((scoreTxt.match(/\d+/) || [5])[0], 10) || 5;
+
+    const strengths = [];
+    if (hasRoutine) strengths.push('你已为行动设定了固定场景/时间——这是习惯回路（提示→惯例→奖励）的关键第一步');
+    if (hasNumber) strengths.push('目标含明确数字，符合 Locke & Latham 的"具体且有挑战的目标优于尽力而为"研究结论');
+    if (appStats.curStreak >= 3) strengths.push('当前已连续打卡 ' + appStats.curStreak + ' 天，连续性本身就是强大的动力资产');
+    if (appStats.totalCheckins > 0) strengths.push('累计打卡 ' + appStats.totalCheckins + ' 次，你在持续行动而非空想');
+    if (selfScore >= 7) strengths.push('自评 ' + selfScore + ' 分，说明你有较好的投入意愿，这是最难能可贵的起点');
+    if (!strengths.length) strengths.push('你愿意认真回答这些问题、正视自己的目标，这已经是行动的开始');
+
+    const issues = [];
+    if (!hasMilestone) issues.push({ title: '缺少里程碑拆解', detail: '目标梯度效应表明：接近目标本身就能提升动机。把大目标拆成每月/每阶段的小里程碑，每达成一个都会强化继续的动力。' });
+    if (isTime) issues.push({ title: '时间与精力不足', detail: '加班后意志力薄弱是普遍规律。用 if-then 实施意图（Gollwitzer，642项元分析2024）："如果下班到家，就先读10分钟"——把决定提前做好，减少启动时的决策消耗。' });
+    if (isMotivation) issues.push({ title: '动力波动', detail: '动力天然会波动，靠"感觉"行动不可靠。用 WOOP 四步法：先想象达成目标的好处（结果），再预演障碍与对策——预演障碍能显著提高坚持率。' });
+    if (isMethod) issues.push({ title: '方法需要调整', detail: '方法不对时努力会低效。用间隔重复（Ebbinghaus 遗忘曲线）安排复习；每周用统计页复盘完成率，数据驱动调整比自我批评更有效。' });
+    if (isEnv) issues.push({ title: '环境干扰', detail: '习惯回路中"提示"决定行为触发。把手机放远、固定学习角落、用白噪音隔离——减少环境诱惑，比靠意志力更有效。' });
+    if (!issues.length) issues.push({ title: '明确最大障碍', detail: '障碍描述较模糊。花2分钟用 WOOP 写下最大的一个障碍和一条 if-then 对策（具体到时间+地点+动作），坚持率会明显提升。' });
+
+    const actions = [];
+    if (!hasMilestone) actions.push({ title: '拆出 3 个里程碑', detail: '例："3个月完成1/3"→"6个月完成2/3"→"9个月全部达成"。每达成一个，小胖鸭都会为你庆祝（正向激励强化回路）。' });
+    if (isTime) actions.push({ title: '写一条 if-then 保底计划', detail: '"如果今晚加班到8点后，就只读5分钟"——降低门槛保住连续性。中断后回归，比完美更重要。' });
+    if (isMotivation) actions.push({ title: '给奖励回路加钩子', detail: '每连续打卡7天，奖励自己一件喜欢的小事。行为塑造中即时奖励比远期目标更能驱动坚持。' });
+    if (isMethod) actions.push({ title: '建立反馈循环', detail: '每周日晚用统计页复盘（完成率/趋势），低于60%就调整方法而不是责备自己。' });
+    if (isEnv) actions.push({ title: '改造环境提示', detail: '把手机放另一个房间，在固定位置放好"行动道具"（书/哑铃/笔记本），让环境替你提醒。' });
+    if (!actions.length) actions.push({ title: '写一个具体明日行动', detail: '"明天晚上9点，在书桌前读10分钟"——if-then 句式，具体到时间+地点+动作。' });
+    actions.push({ title: '让连续性为你工作', detail: '每次打卡都是给链条加一环。中断也没关系——小胖鸭永远欢迎你回来，回归本身就是胜利。' });
+
+    const encouragement = '你已经比大多数只会"想想"的人走得更远。科学告诉我们：具体计划 + 正向反馈 + 允许中断的回归，远比咬牙硬撑更能抵达终点。小胖鸭会一直陪你！🐤';
+
+    const dimension = isTime ? '时间精力' : isMotivation ? '动力维持' : isMethod ? '方法优化' : isEnv ? '环境管理' : '计划细化';
+    return {
+      score: Math.min(95, Math.max(25, selfScore * 9 + (hasRoutine ? 10 : 0) + (hasNumber ? 5 : 0) + (appStats.curStreak >= 3 ? 5 : 0))),
+      diagnosis: '目标方向清晰' + (hasNumber ? '、有量化指标' : '') + '，' + (hasMilestone ? '计划较完整' : '缺一个可落地的里程碑拆解') + '，主要挑战在「' + dimension + '」维度。',
+      strengths: strengths,
+      issues: issues,
+      actions: actions,
+      encouragement: encouragement
+    };
   };
 
   /* AI 设置页 */
