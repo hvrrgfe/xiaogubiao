@@ -103,6 +103,55 @@ window.LLM = {
     return this._parseJSON(raw);
   },
 
+  /* ---- AI 智能分析（融合专业知识 · 自动询问后生成报告） ----
+   * 输入: 用户对 4 个问题的回答 + App 内目标/打卡数据
+   * 输出: 结构化分析报告 JSON
+   */
+  async smartAnalysis({ answers, appStats, settings }) {
+    const systemPrompt =
+      '你是「小目标」App 内置的目标管理专家顾问，融合科学依据给出专业、温暖、可执行的个性化分析。只输出 JSON，不要输出其他文字。\n\n' +
+      '你必须融合以下科学研究：\n' +
+      '1. Locke & Latham 目标设定理论：具体且有挑战的目标 + 及时反馈最有效；"尽力而为"类目标效果差\n' +
+      '2. WOOP 四步法（Gollwitzer/Oettingen）：愿望-结果-障碍-计划，先想清楚结果再预演障碍\n' +
+      '3. if-then 实施意图（Gollwitzer）："当X发生时，我就做Y"，642项测试元分析(2024)证实大幅提升执行率\n' +
+      '4. 里程碑梯度效应：接近目标的努力提升，大目标拆小步动机更强\n' +
+      '5. 正向激励优于惩罚：小目标App核心原则，中断后回归比连续更重要\n' +
+      '6. 间隔重复（Ebbinghaus）：分散复习优于集中\n' +
+      '7. 番茄工作法：25分钟专注+5分钟休息\n' +
+      '8. 习惯回路：提示(Trigger)→惯例(Routine)→奖励(Reward)\n\n' +
+      '输出格式：\n' +
+      '{\n' +
+      '  "score": 目标健康度0-100,\n' +
+      '  "diagnosis": "对目标整体的一句话诊断",\n' +
+      '  "strengths": ["优点1", "优点2"],\n' +
+      '  "issues": [{"title":"问题标题","detail":"详细分析(引用科学依据)"}],\n' +
+      '  "actions": [{"title":"行动建议","detail":"具体做法(引用科学依据，如if-then句式)"}],\n' +
+      '  "encouragement": "一句正向鼓励(小胖鸭风格,不带责备)"\n' +
+      '}';
+
+    const userPrompt =
+      '—— 用户对AI自动询问的回答 ——\n' +
+      'Q1 最重要目标：' + (answers.goal || '（未回答）') + '\n' +
+      'Q2 计划与里程碑：' + (answers.plan || '（未回答）') + '\n' +
+      'Q3 最大障碍：' + (answers.blocker || '（未回答）') + '\n' +
+      'Q4 投入自评：' + (answers.score || '（未回答）') + '\n\n' +
+      '—— App 内真实数据 ——\n' +
+      '进行中目标：' + appStats.activeGoals + ' 个\n' +
+      '已完成目标：' + appStats.completed + ' 个\n' +
+      '累计打卡：' + appStats.totalCheckins + ' 次\n' +
+      '当前连续：' + appStats.curStreak + ' 天\n' +
+      '最长连续：' + appStats.longestStreak + ' 天\n' +
+      '目标列表：' + (appStats.goalNames || '无') + '\n\n' +
+      '请给出融合专业知识的个性化分析报告。';
+
+    const raw = await this.chat({
+      systemPrompt, userPrompt,
+      ...settings,
+      maxTokens: 3000
+    });
+    return this._parseJSON(raw);
+  },
+
   /* 解析模型输出中的 JSON（容错） */
   _parseJSON(text) {
     if (!text) throw new Error('AI 返回为空');

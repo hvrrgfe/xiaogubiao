@@ -1230,6 +1230,15 @@
     });
     html += '</div></div>';
 
+    // AI 智能分析（入口）
+    html += '<div class="card" style="border-left:4px solid var(--primary);cursor:pointer" data-action="ai-analyze">';
+    html += '<div style="display:flex;align-items:center;gap:12px">';
+    html += '<div style="width:44px;height:44px;border-radius:14px;background:linear-gradient(155deg,rgba(201,160,108,0.35),rgba(240,214,122,0.2));display:flex;align-items:center;justify-content:center;color:var(--primary);flex-shrink:0">' + icon('sparkles') + '</div>';
+    html += '<div style="flex:1"><div style="font-size:15px;font-weight:700">AI 智能分析</div>';
+    html += '<div style="font-size:12px;color:var(--ink-2)">自动询问你的目标与障碍，融合科学依据生成个性化报告</div></div>';
+    html += '<span style="color:var(--ink-3);font-size:18px">›</span>';
+    html += '</div></div>';
+
     // AI 设置
     html += '<div class="card"><div class="card-title">' + icon('sparkles') + ' AI 目标拆解</div>';
     html += '<p style="font-size:12px;color:var(--ink-2);margin-bottom:12px">用自己的 API Key 让 AI 帮你把大目标拆成里程碑计划。Key 经本地代理转发（API 保护），不直接暴露给浏览器。</p>';
@@ -1259,7 +1268,8 @@
     $$('[data-action]').forEach(el => {
       el.onclick = () => {
         const a = el.dataset.action;
-        if (a === 'ai-settings') this.aiSettings();
+        if (a === 'ai-analyze') this.aiAnalyze();
+        else if (a === 'ai-settings') this.aiSettings();
         else if (a === 'ai-test') this.aiTest();
         else if (a === 'templates') this.templates();
         else if (a === 'duck-detail') this.duckDetail();
@@ -1267,6 +1277,144 @@
         else if (a === 'import') this.importData();
       };
     });
+  };
+
+  /* ---------- AI 智能分析（自动询问向导） ---------- */
+  Page.aiAnalyze = function () {
+    this._aiq = { step: 0, answers: {}, report: null };
+    this.aiqRender();
+  };
+
+  /* AI 询问问题流（自动询问） */
+  Page.aiqQuestions = [
+    { key: 'goal', q: '你正在坚持的【最重要目标】是什么？说得越具体越好（比如"一年读24本书"而不是"多读书"）。' },
+    { key: 'plan', q: '你为这个目标制定了怎样的【计划】？有没有拆成小步骤、里程碑，或设定固定打卡时间？' },
+    { key: 'blocker', q: '最近遇到的【最大障碍】是什么？是时间不够、动力不足、方法不对，还是环境干扰？' },
+    { key: 'score', q: '如果用 1-10 分给现在的【投入程度】打分，你打几分？为什么是这个分数？' }
+  ];
+
+  Page.aiqRender = function () {
+    const w = this._aiq;
+    const qs = this.aiqQuestions;
+
+    if (w.report) {
+      /* ---- 报告页 ---- */
+      const r = w.report;
+      let html = '<h3 class="modal-title">🐤 AI 智能分析报告</h3>';
+      html += '<div style="text-align:center;margin-bottom:14px">';
+      html += '<span class="stat-num" style="font-size:38px">' + r.score + '</span>';
+      html += '<div class="stat-label">目标健康度</div>';
+      html += '<div class="progress-bar" style="margin-top:8px"><div class="progress-fill" style="width:' + r.score + '%"></div></div>';
+      html += '</div>';
+      html += '<div class="duck-line" style="margin-bottom:12px"><span class="dl-e">🧭</span><span>' + esc(r.diagnosis || '') + '</span></div>';
+
+      if (r.strengths && r.strengths.length) {
+        html += '<div class="card" style="margin-bottom:10px"><div class="card-title">' + icon('award') + ' 你的优势</div>';
+        r.strengths.forEach(s => {
+          html += '<div class="record-item"><span class="record-date">✅</span><span class="record-note">' + esc(s) + '</span></div>';
+        });
+        html += '</div>';
+      }
+      if (r.issues && r.issues.length) {
+        html += '<div class="card" style="margin-bottom:10px"><div class="card-title">' + icon('info') + ' 待优化（科学依据）</div>';
+        r.issues.forEach(iss => {
+          html += '<div class="record-item"><span class="record-date" style="color:var(--warn)">💡</span>' +
+            '<span class="record-note"><b>' + esc(iss.title) + '</b><br><span style="font-size:12px;color:var(--ink-2)">' + esc(iss.detail) + '</span></span></div>';
+        });
+        html += '</div>';
+      }
+      if (r.actions && r.actions.length) {
+        html += '<div class="card" style="margin-bottom:10px"><div class="card-title">' + icon('zap') + ' 行动方案</div>';
+        r.actions.forEach((a, i) => {
+          html += '<div class="record-item"><span class="record-date">' + (i + 1) + '</span>' +
+            '<span class="record-note"><b>' + esc(a.title) + '</b><br><span style="font-size:12px;color:var(--ink-2)">' + esc(a.detail) + '</span></span></div>';
+        });
+        html += '</div>';
+      }
+      html += '<div class="duck-line"><span class="dl-e">🐤</span><span>' + esc(r.encouragement || '') + '</span></div>';
+      html += '<div class="step-btns">';
+      html += '<button class="btn btn-ghost" style="flex:1" id="ar-again">' + icon('refresh') + ' 重新分析</button>';
+      html += '<button class="btn" style="flex:1" id="ar-close">完成</button>';
+      html += '</div>';
+      UI.openModal(html);
+      $('#ar-again').onclick = () => { this._aiq = { step: 0, answers: {}, report: null }; this.aiqRender(); };
+      $('#ar-close').onclick = () => UI.closeModal();
+      return;
+    }
+
+    if (w.step >= qs.length) {
+      /* ---- 生成报告 ---- */
+      let html = '<h3 class="modal-title">AI 智能分析</h3>';
+      html += '<div class="ai-loading"><div class="spinner"></div><p>正在融合目标管理科学知识<br>分析你的回答与打卡数据…</p></div>';
+      UI.openModal(html);
+      this.aiGenerate();
+      return;
+    }
+
+    /* ---- 询问页 ---- */
+    const q = qs[w.step];
+    const done = Object.keys(w.answers).length;
+    let html = '<h3 class="modal-title">AI 智能分析</h3>';
+    html += '<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">';
+    for (let i = 0; i < qs.length; i++) {
+      html += '<div style="flex:1;height:5px;border-radius:3px;background:' + (i < w.step ? 'var(--olive)' : 'rgba(255,255,255,0.5)') + '"></div>';
+    }
+    html += '</div>';
+    html += '<div class="duck-line" style="font-size:14px;margin-bottom:14px"><span class="dl-e">🐤</span><span>' + esc(q.q) + '</span></div>';
+    html += '<div class="form-group"><textarea class="form-textarea" id="aq-input" placeholder="在这里回答…" style="min-height:90px"></textarea></div>';
+    html += '<div class="step-btns">';
+    if (w.step > 0) html += '<button class="btn btn-ghost" style="flex:1" id="aq-back">上一步</button>';
+    html += '<button class="btn" style="flex:1" id="aq-next">' + (w.step === qs.length - 1 ? '生成分析报告' : '下一步') + '</button>';
+    html += '</div>';
+    html += '<p style="font-size:11px;color:var(--ink-3);text-align:center;margin-top:10px">分析将融合 Locke目标设定 / WOOP / if-then 实施意图等科学依据</p>';
+    UI.openModal(html);
+    const inp = $('#aq-input');
+    if (w.step === 0) inp.placeholder = '试试："每天背20个单词，坚持了10天"';
+    if (inp) setTimeout(() => inp.focus(), 150);
+    $('#aq-back') && ($('#aq-back').onclick = () => { w.step--; this.aiqRender(); });
+    $('#aq-next').onclick = () => {
+      const v = inp.value.trim();
+      if (!v) { UI.toast('先写点什么吧，AI 才能帮你分析 🐤'); return; }
+      w.answers[q.key] = v;
+      w.step++;
+      this.aiqRender();
+    };
+  };
+
+  /* 调用 LLM 生成报告 */
+  Page.aiGenerate = async function () {
+    const s = S().settings;
+    const w = this._aiq;
+    try {
+      const key = Store.getApiKey();
+      if (!key && s.apiProvider !== 'ollama') {
+        UI.closeModal();
+        UI.toast('请先在「更多 → AI 配置」填写 API Key');
+        this._aiq = { step: 0, answers: {}, report: null };
+        return;
+      }
+      const goals = S().goals.filter(g => g.status === 'active');
+      const st = Stats.all();
+      const appStats = {
+        activeGoals: st.active,
+        completed: st.completed,
+        totalCheckins: st.totalCheckins,
+        curStreak: st.curStreak,
+        longestStreak: st.longestStreak,
+        goalNames: goals.map(g => g.name + '(' + Math.round(Stats.progress(g).pct) + '%)').join('、') || '暂无'
+      };
+      const report = await LLM.smartAnalysis({
+        answers: w.answers,
+        appStats: appStats,
+        settings: { endpoint: s.apiEndpoint, model: s.apiModel, apiKey: key, useProxy: s.useProxy }
+      });
+      w.report = report;
+      this.aiqRender();
+    } catch (e) {
+      UI.closeModal();
+      UI.toast('分析失败: ' + e.message);
+      this._aiq = { step: 0, answers: {}, report: null };
+    }
   };
 
   /* AI 设置页 */
