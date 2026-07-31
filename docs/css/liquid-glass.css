@@ -1,0 +1,60 @@
+/* ============ 液态玻璃增强层（调研后补充 v2） ============
+ * 依据：苹果官方定义（反射+折射+动态变形）+ 社区拆解（边缘高光/表面噪点）
+ * 实现：
+ *  · ::after  → 顶部高光线 + 玻璃噪点颗粒（多背景合并）
+ *  · ::before → 边缘高光（inset 四边高光，液体张力感）
+ *  · :active  → 高透玻璃状态（iOS 26 交互态去磨砂）
+ *  · box-shadow 覆盖 → 悬浮投影增强
+ * ============================================================ */
+
+/* 噪点 data URI（feTurbulence fractalNoise，玻璃颗粒） */
+.glass-noise-url {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.055'/%3E%3C/svg%3E");
+}
+
+/* ---- 卡片：顶部高光线 + 噪点颗粒（合并到 ::after） ---- */
+.card::after, .goal-card::after, .stat-box::after, .tpl-card::after,
+.today-item::after, .pet-speech::after, .quickbar-inner::after {
+  content: ''; position: absolute; inset: 0; border-radius: inherit; pointer-events: none;
+  background:
+    /* 顶部高光线（玻璃上缘反光） */
+    linear-gradient(90deg, transparent 8%, rgba(255, 255, 255, 0.9) 50%, transparent 92%) top left / 100% 1px no-repeat,
+    /* 噪点颗粒（真玻璃质感） */
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.055'/%3E%3C/svg%3E") repeat;
+  opacity: 0.85;
+}
+
+/* ---- 边缘高光（液体张力：四边内高光） ---- */
+.card::before, .goal-card::before, .stat-box::before, .tpl-card::before,
+.today-item::before, .pet-speech::before, .quickbar-inner::before {
+  content: ''; position: absolute; inset: 0;
+  border-radius: inherit; pointer-events: none;
+  box-shadow:
+    inset 0 2px 3px rgba(255, 255, 255, 0.50),
+    inset 0 -2px 4px rgba(255, 255, 255, 0.10),
+    inset 2px 0 2px rgba(255, 255, 255, 0.16),
+    inset -2px 0 2px rgba(255, 255, 255, 0.05);
+}
+
+/* 这些元素需要 position: relative 让伪元素定位正确 */
+.card, .goal-card, .stat-box, .tpl-card, .today-item, .pet-speech, .quickbar-inner {
+  position: relative;
+}
+
+/* ---- 高透玻璃状态（交互态：iOS 26 按钮按下变透明） ---- */
+.btn:active, .pet-action-btn:active, .type-option:active, .noise-chip:active,
+.focus-opts button:active, .chip:active, .cal-nav:active {
+  -webkit-backdrop-filter: blur(4px) saturate(160%) !important;
+  backdrop-filter: blur(4px) saturate(160%) !important;
+  background: rgba(255, 255, 255, 0.30) !important;
+}
+
+/* ---- 悬浮投影增强（玻璃浮于彩色背景之上） ---- */
+.card, .goal-card, .stat-box, .tpl-card, .today-item, .pet-speech, .quickbar-inner {
+  box-shadow:
+    inset 0 1.5px 2px rgba(255, 255, 255, 0.30),
+    inset 0 -2px 3px rgba(255, 255, 255, 0.08),
+    inset 0 0 22px rgba(255, 255, 255, 0.08),
+    0 4px 12px rgba(90, 70, 140, 0.10),
+    0 18px 48px rgba(90, 70, 140, 0.16);
+}
