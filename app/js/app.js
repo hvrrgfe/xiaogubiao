@@ -1751,6 +1751,8 @@
       setTimeout(() => {
         $('#splash-screen').classList.add('fade-out');
         $('#app').classList.remove('hidden');
+        // 液态玻璃：app 可见后重建折射贴图（hidden 时尺寸为 0）
+        if (window.LiquidGlass) LiquidGlass.refresh();
       }, 600);
 
       // 导航
@@ -1774,6 +1776,9 @@
 
       // 今日页
       this.go('home');
+
+      // 液态玻璃：边缘折射膨胀（完整复刻）
+      if (window.LiquidGlass) LiquidGlass.init();
 
       // 每日打卡提醒（简单的本地提醒文案）
       setInterval(() => {

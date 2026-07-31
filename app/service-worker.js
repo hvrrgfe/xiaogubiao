@@ -12,6 +12,7 @@ const ASSETS = [
   './js/utils/icons.js',
   './js/utils/store.js',
   './js/utils/duckArt.js',
+  './js/utils/liquidGlass.js',
   './js/utils/llm.js',
   './js/app.js',
   './assets/app-icon-192.png',
